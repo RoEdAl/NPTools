@@ -44,7 +44,7 @@ namespace NamedPipeTools
                 }
             }
 
-            static async Task<int> Main(string[] args)
+            public static async Task<int> Main(string[] args)
             {
                 return await Main(args, Sender, Receiver);
             }

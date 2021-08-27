@@ -10,6 +10,18 @@ namespace NamedPipeTools
 {
     namespace App
     {
+        enum ExitCodes
+        {
+            NO_ERROR = 0,
+            EXCEPTION_OCCURED = 1
+        }
+
+        public class HandledException : Exception
+        {
+            public HandledException(string message, Exception innerException) : base(message, innerException) { }
+            public HandledException(Exception innerException) : base("Exception was already handled", innerException) { }
+        }
+
         public class Program
         {
             protected static readonly Logger log = LogManager.GetCurrentClassLogger();
@@ -71,7 +83,7 @@ namespace NamedPipeTools
 
             protected static Stream GetStream(SenderOptions options)
             {
-                if (string.IsNullOrWhiteSpace(options.File) || string.Compare(options.File, "stdin", true) == 0)
+                if (string.IsNullOrWhiteSpace(options.File) || string.Compare(options.File, "stdin", true) == 0 || string.Compare(options.File, "-") == 0)
                 {
                     log.Debug("Get standard input stream");
                     return Console.OpenStandardInput(options.BufferSize);
@@ -85,7 +97,7 @@ namespace NamedPipeTools
 
             protected static Stream GetStream(ReceiverOpttions options)
             {
-                if (string.IsNullOrWhiteSpace(options.File) || string.Compare(options.File, "stdout", true) == 0)
+                if (string.IsNullOrWhiteSpace(options.File) || string.Compare(options.File, "stdout", true) == 0 || string.Compare(options.File, "-") == 0)
                 {
                     log.Debug("Get standard output stream");
                     return Console.OpenStandardOutput(options.BufferSize);
@@ -120,6 +132,19 @@ namespace NamedPipeTools
                     {
                         await handler(options, cancellationToken.Token);
                     }
+                    catch(Exception ex)
+                    {
+                        if (options.Verbose)
+                        {
+                            log.Error(ex);
+                        }
+                        else
+                        {
+                            log.Error(ex.Message);
+                        }
+
+                        throw new HandledException(ex);
+                    }
                     finally
                     {
                         log.Debug("Uninitialize cancel event handler");
@@ -144,12 +169,16 @@ namespace NamedPipeTools
                     await options.WithParsedAsync((SenderOptions o) => VerbHandler(o, senderHandler));
                     await options.WithParsedAsync((ReceiverOpttions o) => VerbHandler(o, receiverHandler));
                     log.Info("Done");
-                    return 0;
+                    return (int)ExitCodes.NO_ERROR;
+                }
+                catch(HandledException)
+                {
+                    return (int)ExitCodes.EXCEPTION_OCCURED;
                 }
                 catch (Exception ex)
                 {
                     log.Error(ex);
-                    return 1;
+                    return (int)ExitCodes.EXCEPTION_OCCURED;
                 }
             }
         }
