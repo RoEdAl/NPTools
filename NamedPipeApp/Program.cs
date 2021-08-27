@@ -2,6 +2,7 @@
 using NLog;
 using System;
 using System.IO;
+using System.IO.Pipes;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -23,7 +24,12 @@ namespace NamedPipeTools
                 LogManager.Configuration = config;
             }
 
-            protected class Options
+            protected interface IPipeDirection
+            {
+                PipeDirection PipeDirection { get; }
+            }
+
+            protected abstract class Options : IPipeDirection
             {
                 [Option('v', "verbose", Required = false, Default = false, HelpText = "Be more verbose")]
                 public bool Verbose { get; set; }
@@ -34,27 +40,33 @@ namespace NamedPipeTools
                 [Value(0, MetaName = "PipeName", Required = true, HelpText = "Pipe name")]
                 public string PipeName { get; set; }
 
-                public string FullPipeName
+                public string PipeFullName
                 {
                     get
                     {
                         return string.Format(@"\\.\pipe\{0}", PipeName);
                     }
                 }
+
+                public abstract PipeDirection PipeDirection { get; }
             }
 
             [Verb("receive", HelpText = "Open pipe (write mode) and transfer data from stdin or file to it")]
-            protected sealed class ReceiverOpttions : Options
+            protected sealed class ReceiverOpttions : Options, IPipeDirection
             {
                 [Option('f', "file", Default = "stdout", Required = false, HelpText = "File to read data from")]
                 public string File { get; set; }
+
+                public override PipeDirection PipeDirection => System.IO.Pipes.PipeDirection.In;
             }
 
             [Verb("send", HelpText = "Open pipe (read mode) and write data from it to stdout or file")]
-            protected sealed class SenderOptions : Options
+            protected sealed class SenderOptions : Options, IPipeDirection
             {
                 [Option('f', "file", Default = "stdin", Required = false, HelpText = "File to write data from pipe")]
                 public string File { get; set; }
+
+                public override PipeDirection PipeDirection => System.IO.Pipes.PipeDirection.Out;
             }
 
             protected static Stream GetStream(SenderOptions options)

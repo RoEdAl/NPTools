@@ -8,15 +8,15 @@ namespace NamedPipeTools
     {
         class Program : App.Program
         {
-            private static NamedPipeServerStream GetPipeStream(Options options, PipeDirection pipeDirection)
+            private static NamedPipeServerStream GetPipeStream(Options options)
             {
-                log.Info("Create named pipe {PipeName} server stream", options.FullPipeName);
-                return new NamedPipeServerStream(options.PipeName, pipeDirection, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+                log.Info("Create named pipe {PipeName} server stream (direction {Direction})", options.PipeFullName, options.PipeDirection);
+                return new NamedPipeServerStream(options.PipeName, options.PipeDirection, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
             }
 
             private static async Task Receiver(ReceiverOpttions options, CancellationToken cancellationToken)
             {
-                using (var pipeStream = GetPipeStream(options, PipeDirection.In))
+                using (var pipeStream = GetPipeStream(options))
                 {
                     log.Info("Wait for connection");
                     await pipeStream.WaitForConnectionAsync(cancellationToken);
@@ -31,7 +31,7 @@ namespace NamedPipeTools
 
             private static async Task Sender(SenderOptions options, CancellationToken cancellationToken)
             {
-                using (var pipeStream = GetPipeStream(options, PipeDirection.Out))
+                using (var pipeStream = GetPipeStream(options))
                 {
                     log.Info("Wait for connection");
                     await pipeStream.WaitForConnectionAsync(cancellationToken);
