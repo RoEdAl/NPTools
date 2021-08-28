@@ -1,4 +1,6 @@
 ﻿using System.IO.Pipes;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -11,7 +13,13 @@ namespace NamedPipeTools
             private static NamedPipeServerStream GetPipeStream(Options options)
             {
                 log.Info("Create named pipe {PipeName} server stream (direction {Direction})", options.PipeFullName, options.PipeDirection);
-                return new NamedPipeServerStream(options.PipeName, options.PipeDirection, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+
+                var pipeSecurity = new PipeSecurity();
+                var sid = new SecurityIdentifier(WellKnownSidType.LocalSid, null);
+                var par = new PipeAccessRule(sid, PipeAccessRights.ReadWrite, AccessControlType.Allow);
+                pipeSecurity.AddAccessRule(par);
+
+                return new NamedPipeServerStream(options.PipeName, options.PipeDirection, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous, options.BufferSize, options.BufferSize, pipeSecurity);
             }
 
             private static async Task Receiver(ReceiverOpttions options, CancellationToken cancellationToken)

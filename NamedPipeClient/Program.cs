@@ -11,7 +11,7 @@ namespace NamedPipeTools
             static private NamedPipeClientStream GetPipeStream(Options options)
             {
                 log.Info("Open named pipe {PipeName} client stream (direction {Direction})", options.PipeFullName, options.PipeDirection);
-                return new NamedPipeClientStream(".", options.PipeName, options.PipeDirection, PipeOptions.Asynchronous);
+                return new NamedPipeClientStream(".", options.PipeName, options.PipeDirection, PipeOptions.Asynchronous, System.Security.Principal.TokenImpersonationLevel.None, System.IO.HandleInheritability.None);
             }
 
             private static async Task Receiver(ReceiverOpttions options, CancellationToken cancellationToken)

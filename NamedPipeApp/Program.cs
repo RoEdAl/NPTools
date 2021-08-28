@@ -46,7 +46,7 @@ namespace NamedPipeTools
                 [Option('v', "verbose", Required = false, Default = false, HelpText = "Be more verbose")]
                 public bool Verbose { get; set; }
 
-                [Option('b', "buffer-size", Default = 16 * 1024, Required = false, HelpText = "Buffer size")]
+                [Option('b', "buffer-size", Default = 32 * 1024, Required = false, HelpText = "Buffer size")]
                 public int BufferSize { get; set; }
 
                 [Value(0, MetaName = "PipeName", Required = true, HelpText = "Pipe name")]
