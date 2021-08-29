@@ -8,16 +8,17 @@ using System.Threading.Tasks;
 
 namespace NamedPipeTools.App
 {
-    enum ExitCodes
+    internal enum ExitCode
     {
         NO_ERROR = 0,
-        EXCEPTION_OCCURED = 1
+        EXCEPTION_OCCURED = 1,
+        CANCELLED = 2
     }
 
-    public class HandledException : Exception
+    internal class HandledException : Exception
     {
         public HandledException(string message, Exception innerException) : base(message, innerException) { }
-        public HandledException(Exception innerException) : base("Exception was already handled", innerException) { }
+        public HandledException(Exception innerException) : base("Exception has been handled", innerException) { }
     }
 
     public abstract class Options
@@ -69,7 +70,7 @@ namespace NamedPipeTools.App
             else
             {
                 log.Info("Open {File} file (read mode)", options.File);
-                return File.Open(options.File, FileMode.Open, FileAccess.Read);
+                return new FileStream(options.File, FileMode.Open, FileAccess.Read, FileShare.Read, options.BufferSize);
             }
         }
 
@@ -83,8 +84,78 @@ namespace NamedPipeTools.App
             else
             {
                 log.Info("Create {File} file (write mode)", options.File);
-                return File.Open(options.File, FileMode.Create, FileAccess.Write);
+                return new FileStream(options.File, FileMode.Create, FileAccess.Write, FileShare.None, options.BufferSize);
             }
+        }
+
+        protected static PipeDirection GetPipeDirection<T>(T options) where T : Options
+        {
+            if (options is R)
+            {
+                return PipeDirection.In;
+            }
+            else if (options is S)
+            {
+                return PipeDirection.Out;
+            }
+
+            throw new ArgumentException("Unsupported options class");
+        }
+
+        private static async Task GetCancellationTask(int timeoutInSeconds, CancellationToken timeoutCancellationToken, CancellationTokenSource taskCancellationTokenSource )
+        {
+            await Task.Delay(TimeSpan.FromSeconds(timeoutInSeconds), timeoutCancellationToken);
+
+            log.Warn("Timeout");
+            taskCancellationTokenSource.Cancel();
+        }
+        private static async Task TimeoutHandler(Options options, Task task, CancellationTokenSource taskCancellationTokenSource)
+        {
+            if (options.ConnectTimeout <= 0)
+            {
+                await task;
+                return;
+            }
+
+            using (var cancellationTokenSource = new CancellationTokenSource())
+            {
+                var cancellationTask = GetCancellationTask(options.ConnectTimeout, cancellationTokenSource.Token, taskCancellationTokenSource);
+                var completedTask = await Task.WhenAny(cancellationTask, task);
+                if (completedTask == task)
+                {
+                    log.Debug("Cancel cancellation task");
+                    cancellationTokenSource.Cancel();
+                }
+                else
+                {
+                    await task; // task cancelled, raise exception
+                }
+            }
+        }
+
+        private static async Task<T> TimeoutHandler<T>(Options options, Task<T> task, CancellationTokenSource taskCancellationTokenSource)
+        {
+            if (options.ConnectTimeout <= 0)
+            {
+                return await task;
+            }
+
+            using (var cancellationTokenSource = new CancellationTokenSource())
+            {
+                var cancellationTask = GetCancellationTask(options.ConnectTimeout, cancellationTokenSource.Token, taskCancellationTokenSource);
+                var completedTask = await Task.WhenAny(cancellationTask, task);
+                if (completedTask == task)
+                {
+                    log.Debug("Cancel cancellation task");
+                    cancellationTokenSource.Cancel();
+                    return task.Result;
+                }
+                else
+                {
+                    return await task; // task cancelled, raise exception
+                }
+            }
+
         }
 
         private static async Task VerbHandler<T>(T options, Func<T, CancellationToken, Func<Task, Task>, Task> handler) where T : Options
@@ -136,48 +207,35 @@ namespace NamedPipeTools.App
             }
         }
 
-        protected static PipeDirection GetPipeDirection<T>(T options) where T:Options
+
+        private static async Task<ExitCode> Run(
+            string[] args,
+            Func<S, CancellationToken, Func<Task, Task>, Task> senderHandler,
+            Func<R, CancellationToken, Func<Task, Task>, Task> receiverHandler
+        )
         {
-            if (options is R)
+            log.Debug("Parse arguments");
+            var options = Parser.Default.ParseArguments<S, R>(args);
+
+            try
             {
-                return PipeDirection.In;
+                await options.WithParsedAsync((S o) => VerbHandler(o, senderHandler));
+                await options.WithParsedAsync((R o) => VerbHandler(o, receiverHandler));
+                log.Info("Done");
+                return ExitCode.NO_ERROR;
             }
-            else if (options is S)
+            catch(HandledException)
             {
-                return PipeDirection.Out;
+                return ExitCode.EXCEPTION_OCCURED;
             }
-
-            throw new ArgumentException("Wrong options class");
-        }
-
-        private static async Task TimeoutHandler(Options options, Task task, CancellationTokenSource taskCancellationTokenSource)
-        {
-            if (options.ConnectTimeout <= 0)
+            catch(OperationCanceledException)
             {
-                await task;
-                return;
+                return ExitCode.CANCELLED;
             }
-
-            using (var timeoutCancellationTokenSource = new CancellationTokenSource())
+            catch (Exception ex)
             {
-                Task timeoutTask = Task.Delay(TimeSpan.FromSeconds(options.ConnectTimeout), timeoutCancellationTokenSource.Token).ContinueWith((t) => {
-                    if (!t.IsCanceled)
-                    {
-                        log.Warn("Timeout");
-                        taskCancellationTokenSource.Cancel();
-                    }
-                });
-
-                Task waitAny = await Task.WhenAny(timeoutTask, task);
-                if (waitAny == task)
-                {
-                    log.Debug("Cancel timeout task");
-                    timeoutCancellationTokenSource.Cancel();
-                }
-                else
-                {
-                    await task;
-                }
+                log.Error(ex.Message);
+                return ExitCode.EXCEPTION_OCCURED;
             }
         }
 
@@ -189,29 +247,7 @@ namespace NamedPipeTools.App
         {
             InitLogging();
 
-            log.Debug("Parse arguments");
-            var options = Parser.Default.ParseArguments<S, R>(args);
-
-            try
-            {
-                await options.WithParsedAsync((S o) => VerbHandler(o, senderHandler));
-                await options.WithParsedAsync((R o) => VerbHandler(o, receiverHandler));
-                log.Info("Done");
-                return (int)ExitCodes.NO_ERROR;
-            }
-            catch(HandledException)
-            {
-                return (int)ExitCodes.EXCEPTION_OCCURED;
-            }
-            catch(OperationCanceledException)
-            {
-                return (int)ExitCodes.NO_ERROR;
-            }
-            catch (Exception ex)
-            {
-                log.Error(ex.Message);
-                return (int)ExitCodes.EXCEPTION_OCCURED;
-            }
+            return (int)(await Run(args, senderHandler, receiverHandler));
         }
     }
 }

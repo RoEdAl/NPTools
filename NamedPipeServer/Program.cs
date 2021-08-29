@@ -33,7 +33,7 @@ namespace NamedPipeTools
             private static NamedPipeServerStream GetPipeStream(Options options)
             {
                 PipeDirection pipeDirection = GetPipeDirection(options);
-                log.Info("Create named pipe {PipeName} server stream (direction {Direction})", options.PipeFullName, pipeDirection);
+                log.Info("Create named pipe {PipeName} server stream (direction: {Direction}, security: {Security})", options.PipeFullName, pipeDirection, options.SecurityMode);
                 var pipeSecurity = Security.Get(options.SecurityMode, pipeDirection);
                 return  new NamedPipeServerStream(options.PipeName, pipeDirection, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous, options.BufferSize, options.BufferSize, pipeSecurity);
             }
@@ -68,10 +68,7 @@ namespace NamedPipeTools
                 }
             }
 
-            public static async Task<int> Main(string[] args)
-            {
-                return await Main(args, Sender, Receiver);
-            }
+            public static async Task<int> Main(string[] args) => await Main(args, Sender, Receiver);
         }
     }
 }

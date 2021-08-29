@@ -73,36 +73,30 @@ namespace NamedPipeTools.Server
             int TokenInformationLength,
             out int ReturnLength);
 
-        public static SecurityIdentifier Get()
-        {
-            return Get(WindowsIdentity.GetCurrent().Token);
-        }
-
         private static IntPtr GetPseudoToken(PseudoTokenId pseudoTokenId) => new IntPtr((int)pseudoTokenId);
 
-        public static SecurityIdentifier Get(PseudoTokenId pseudoTokenId)
-        {
-            return Get(GetPseudoToken(pseudoTokenId));
-        }
+        public static SecurityIdentifier Get() => Get(WindowsIdentity.GetCurrent().Token);
+
+        public static SecurityIdentifier Get(PseudoTokenId pseudoTokenId) => Get(GetPseudoToken(pseudoTokenId));
 
         private static SecurityIdentifier Get(IntPtr token)
         {
             int tokenInfLength = 0;
             // first call gets lenght of TokenInformation
-            bool res = GetTokenInformation(token, TOKEN_INFORMATION_CLASS.TokenGroups, IntPtr.Zero, tokenInfLength, out tokenInfLength);
+            bool tokenInfoRes = GetTokenInformation(token, TOKEN_INFORMATION_CLASS.TokenGroups, IntPtr.Zero, tokenInfLength, out tokenInfLength);
             IntPtr tokenInformation = Marshal.AllocHGlobal(tokenInfLength);
 
             try
             {
-                res = GetTokenInformation(token, TOKEN_INFORMATION_CLASS.TokenGroups, tokenInformation, tokenInfLength, out tokenInfLength);
+                tokenInfoRes = GetTokenInformation(token, TOKEN_INFORMATION_CLASS.TokenGroups, tokenInformation, tokenInfLength, out tokenInfLength);
 
-                if (!res)
+                if (!tokenInfoRes)
                 {
                     return null;
                 }
 
                 TOKEN_GROUPS tokenGroups = (TOKEN_GROUPS)Marshal.PtrToStructure(tokenInformation, typeof(TOKEN_GROUPS));
-                IntPtr tokenGroupsGroups = IntPtr.Add(tokenInformation, IntPtr.Size);
+                IntPtr tokenGroupsGroups = IntPtr.Add(tokenInformation, IntPtr.Size); // + sizeof(GroupCount)
                 for (int i = 0; i < tokenGroups.GroupCount; i++)
                 {
                     SID_AND_ATTRIBUTES sidAndAttributes = (SID_AND_ATTRIBUTES)Marshal.PtrToStructure(IntPtr.Add(tokenGroupsGroups, i * SID_AND_ATTRIBUTES_SIZE), typeof(SID_AND_ATTRIBUTES));
@@ -112,7 +106,7 @@ namespace NamedPipeTools.Server
                     }
                 }
 
-                return null;
+                return null; // not found
             }
             finally
             {
@@ -123,6 +117,23 @@ namespace NamedPipeTools.Server
 
     internal class Security
     {
+        private static SecurityIdentifier GetSecurityIdentifier(WellKnownSidType wellKnownSidType) => new SecurityIdentifier(wellKnownSidType, null);
+
+        private static PipeAccessRights GetPipeRights(PipeDirection pipeDirection)
+        {
+            switch (pipeDirection)
+            {
+                case PipeDirection.In:
+                    return PipeAccessRights.Write | PipeAccessRights.ReadPermissions | PipeAccessRights.ReadAttributes | PipeAccessRights.ReadExtendedAttributes | PipeAccessRights.AccessSystemSecurity;
+
+                case PipeDirection.Out:
+                    return PipeAccessRights.Read | PipeAccessRights.ReadAttributes | PipeAccessRights.ReadExtendedAttributes | PipeAccessRights.AccessSystemSecurity;
+
+                default:
+                    throw new NotSupportedException("Bidirectional pipe is not supported");
+            }
+        }
+
         public static PipeSecurity Get(SecurityMode securityMode, PipeDirection pipeDirection)
         {
             if (securityMode == SecurityMode.Default)
@@ -133,10 +144,10 @@ namespace NamedPipeTools.Server
             var res = new PipeSecurity();
             // res.AddAccessRule(new PipeAccessRule(WindowsIdentity.GetCurrent().User, PipeAccessRights.FullControl, AccessControlType.Allow));
 
-            var creatorOwnerSid = new SecurityIdentifier(WellKnownSidType.CreatorOwnerSid, null);
+            var creatorOwnerSid = GetSecurityIdentifier(WellKnownSidType.CreatorOwnerSid);
             res.AddAccessRule(new PipeAccessRule(creatorOwnerSid, PipeAccessRights.FullControl, AccessControlType.Allow));
 
-            var administratorsSid = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+            var administratorsSid = GetSecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid);
             res.AddAccessRule(new PipeAccessRule(administratorsSid, PipeAccessRights.FullControl, AccessControlType.Allow));
 
             switch (securityMode)
@@ -147,41 +158,26 @@ namespace NamedPipeTools.Server
                     if (logonSid == null) logonSid = LogonId.Get();
                     if (logonSid != null)
                     {
-                        res.AddAccessRule(new PipeAccessRule(logonSid, GetRights(pipeDirection), AccessControlType.Allow));
+                        res.AddAccessRule(new PipeAccessRule(logonSid, GetPipeRights(pipeDirection), AccessControlType.Allow));
                     }
                     break;
                 }
 
                 case SecurityMode.LocalUsers:
                 {
-                    var localSid = new SecurityIdentifier(WellKnownSidType.LocalSid, null);
-                    res.AddAccessRule(new PipeAccessRule(localSid, GetRights(pipeDirection), AccessControlType.Allow));
+                    var localSid = GetSecurityIdentifier(WellKnownSidType.LocalSid);
+                    res.AddAccessRule(new PipeAccessRule(localSid, GetPipeRights(pipeDirection), AccessControlType.Allow));
                     break;
                 }
 
                 case SecurityMode.Everyone:
                 {
-                    var worldSid = new SecurityIdentifier(WellKnownSidType.WorldSid, null);
-                    res.AddAccessRule(new PipeAccessRule(worldSid, GetRights(pipeDirection), AccessControlType.Allow));
+                    var worldSid = GetSecurityIdentifier(WellKnownSidType.WorldSid);
+                    res.AddAccessRule(new PipeAccessRule(worldSid, GetPipeRights(pipeDirection), AccessControlType.Allow));
                     break;
                 }
             }
             return res;
-        }
-
-        private static PipeAccessRights GetRights(PipeDirection pipeDirection)
-        {
-            switch(pipeDirection)
-            {
-                case PipeDirection.In:
-                return PipeAccessRights.Write | PipeAccessRights.ReadPermissions | PipeAccessRights.ReadAttributes | PipeAccessRights.ReadExtendedAttributes | PipeAccessRights.AccessSystemSecurity;
-
-                case PipeDirection.Out:
-                return PipeAccessRights.Read | PipeAccessRights.ReadAttributes | PipeAccessRights.ReadExtendedAttributes | PipeAccessRights.AccessSystemSecurity;
-
-                default:
-                throw new NotSupportedException("Bidirectional pipe is not supported");
-            }
         }
     }
 }
