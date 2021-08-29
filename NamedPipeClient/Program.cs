@@ -1,4 +1,6 @@
-﻿using System.IO.Pipes;
+﻿using CommandLine;
+using System;
+using System.IO.Pipes;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -6,20 +8,35 @@ namespace NamedPipeTools
 {
     namespace Client
     {
-        class Program : App.Program
+        [Verb("receive", HelpText = "Open pipe (write mode) and transfer data from stdin or file to it")]
+        internal sealed class ReceiverOpttions : App.Options
         {
-            static private NamedPipeClientStream GetPipeStream(Options options)
+            [Option('f', "file", Default = "stdout", Required = false, HelpText = "File to read data from")]
+            public override string File { get; set; }
+        }
+
+        [Verb("send", HelpText = "Open pipe (read mode) and write data from it to stdout or file")]
+        internal sealed class SenderOptions : App.Options
+        {
+            [Option('f', "file", Default = "stdin", Required = false, HelpText = "File to write data from pipe")]
+            public override string File { get; set; }
+        }
+
+        class Program : App.Program<ReceiverOpttions, SenderOptions>
+        {
+            static private NamedPipeClientStream GetPipeStream(App.Options options)
             {
-                log.Info("Open named pipe {PipeName} client stream (direction {Direction})", options.PipeFullName, options.PipeDirection);
-                return new NamedPipeClientStream(".", options.PipeName, options.PipeDirection, PipeOptions.Asynchronous, System.Security.Principal.TokenImpersonationLevel.None, System.IO.HandleInheritability.None);
+                PipeDirection pipeDirection = GetPipeDirection(options);
+                log.Info("Open named pipe {PipeName} client stream (direction {Direction})", options.PipeFullName, pipeDirection);
+                return new NamedPipeClientStream(".", options.PipeName, pipeDirection, PipeOptions.Asynchronous, System.Security.Principal.TokenImpersonationLevel.None, System.IO.HandleInheritability.None);
             }
 
-            private static async Task Receiver(ReceiverOpttions options, CancellationToken cancellationToken)
+            private static async Task Receiver(ReceiverOpttions options, CancellationToken cancellationToken, Func<Task, Task> timeoutHandler)
             {
                 using (var pipeStream = GetPipeStream(options))
                 {
                     log.Info("Connect to server");
-                    await pipeStream.ConnectAsync(cancellationToken);
+                    await timeoutHandler(pipeStream.ConnectAsync(cancellationToken));
 
                     using (var outStream = GetStream(options))
                     {
@@ -29,12 +46,12 @@ namespace NamedPipeTools
                 }
             }
 
-            private static async Task Sender(SenderOptions options, CancellationToken cancellationToken)
+            private static async Task Sender(SenderOptions options, CancellationToken cancellationToken, Func<Task, Task> timeoutHandler)
             {
                 using (var pipeStream = GetPipeStream(options))
                 {
                     log.Info("Connect to server");
-                    await pipeStream.ConnectAsync(cancellationToken);
+                    await timeoutHandler(pipeStream.ConnectAsync(cancellationToken));
 
                     using (var inStream = GetStream(options))
                     {
