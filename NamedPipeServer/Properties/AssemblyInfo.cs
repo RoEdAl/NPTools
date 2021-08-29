@@ -4,11 +4,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("NamedPipeServer")]
-[assembly: AssemblyDescription("Named pipe server")]
+[assembly: AssemblyTitle("Named pipe console server")]
+[assembly: AssemblyDescription("Simple named pipe console server")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Named Pipes Team")]
-[assembly: AssemblyProduct("NamedPipeServer")]
+[assembly: AssemblyProduct("NPTools")]
 [assembly: AssemblyCopyright("Copyright © 2021 Named Pipes Team")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
