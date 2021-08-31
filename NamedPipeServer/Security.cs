@@ -156,10 +156,8 @@ namespace NamedPipeTools.Server
                 {
                     var logonSid = LogonId.Get(PseudoTokenId.CurrentThreadEffective);
                     if (logonSid == null) logonSid = LogonId.Get();
-                    if (logonSid != null)
-                    {
-                        res.AddAccessRule(new PipeAccessRule(logonSid, GetPipeRights(pipeDirection), AccessControlType.Allow));
-                    }
+                    if (logonSid == null) throw new InvalidOperationException("Could not obtain Logon ID");
+                    res.AddAccessRule(new PipeAccessRule(logonSid, GetPipeRights(pipeDirection), AccessControlType.Allow));
                     break;
                 }
 

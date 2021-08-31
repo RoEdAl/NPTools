@@ -21,9 +21,11 @@ Server can work in two modes:
     NamedPipeServer.exe send -f FileToSend.bin MyBinaryPipe
     ```
 
+    Use `-o` option if you want to overwrite existing file.
+
 ## The Client
 
-Ppipe created by server may be in many situations used as ordinary file unsing full pipe path:
+Ppipe created by server may be - in many situations - used as regular file when using full pipe path:
 
 ```.bat
 REM Send data to named pipe
@@ -52,3 +54,5 @@ Like server, client can also work in two modes:
     NamedPipeClient.exe send MySweetPipe
     NamedPipeClient.exe send -f FileToSend.bin MyBinaryPipe
     ```
+
+    Additional option `-r` tries to open pipe as regular file (file stream).

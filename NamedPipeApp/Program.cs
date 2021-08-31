@@ -21,7 +21,7 @@ namespace NamedPipeTools.App
         public HandledException(Exception innerException) : base("Exception has been handled", innerException) { }
     }
 
-    public abstract class Options
+    public class Options
     {
         [Option('v', "verbose", Required = false, Default = false, HelpText = "Be more verbose")]
         public bool Verbose { get; set; }
@@ -42,11 +42,19 @@ namespace NamedPipeTools.App
                 return string.Format(@"\\.\pipe\{0}", PipeName);
             }
         }
-
-        public abstract string File { get; set; }
     }
 
-    public class Program<R,S> where R : Options where S : Options
+    public interface IFilePath
+    {
+        string File { get; set; }
+    }
+
+    public interface IReceiverOptions
+    {
+        bool Overwrite { get; set; }
+    }
+
+    public class Program<R,S> where R : Options, IReceiverOptions, IFilePath where S : Options, IFilePath
     {
         protected static readonly Logger log = LogManager.GetCurrentClassLogger();
 
@@ -69,8 +77,8 @@ namespace NamedPipeTools.App
             }
             else
             {
-                log.Info("Open {File} file (read mode)", options.File);
-                return new FileStream(options.File, FileMode.Open, FileAccess.Read, FileShare.Read, options.BufferSize);
+                log.Info("Open {File} file (Mode:{FileMode}, Access:{FileAccess})", options.File, FileMode.Open, FileAccess.Read);
+                return new FileStream(options.File, FileMode.Open, FileAccess.Read, FileShare.Read, options.BufferSize, FileOptions.SequentialScan);
             }
         }
 
@@ -83,8 +91,9 @@ namespace NamedPipeTools.App
             }
             else
             {
-                log.Info("Create {File} file (write mode)", options.File);
-                return new FileStream(options.File, FileMode.Create, FileAccess.Write, FileShare.None, options.BufferSize);
+                var fileMode = options.Overwrite ? FileMode.Create : FileMode.CreateNew;
+                log.Info("Create {File} file (Mode:{FileMode}, Access:{FileAccess})", options.File, fileMode, FileAccess.Write);
+                return new FileStream(options.File, fileMode, FileAccess.Write, FileShare.None, options.BufferSize);
             }
         }
 

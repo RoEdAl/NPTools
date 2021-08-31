@@ -15,17 +15,20 @@ namespace NamedPipeTools
         }
 
         [Verb("receive", HelpText = "Open pipe (write mode) and transfer data from stdin or file to it")]
-        internal sealed class ReceiverOpttions : Options
+        internal sealed class ReceiverOpttions : Options, App.IFilePath, App.IReceiverOptions
         {
             [Option('f', "file", Default = "stdout", Required = false, HelpText = "File to read data from")]
-            public override string File { get; set; }
+            public string File { get; set; }
+
+            [Option('o', "overwerite", Required = false, Default = false, HelpText = "Overwerite existing file")]
+            public bool Overwrite { get; set; }
         }
 
         [Verb("send", HelpText = "Open pipe (read mode) and write data from it to stdout or file")]
-        internal sealed class SenderOptions : Options
+        internal sealed class SenderOptions : Options, App.IFilePath
         {
             [Option('f', "file", Default = "stdin", Required = false, HelpText = "File to write data from pipe")]
-            public override string File { get; set; }
+            public string File { get; set; }
         }
 
         class Program : App.Program<ReceiverOpttions, SenderOptions>

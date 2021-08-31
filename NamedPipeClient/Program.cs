@@ -11,22 +11,25 @@ namespace NamedPipeTools
     {
         internal abstract class Options : App.Options
         {
-            [Option('s', "simple", Default = false, Required = false, HelpText = "Simple client mode")]
-            public bool Simple { get; set; }
+            [Option('r', "regular-file", Default = false, Required = false, HelpText = "Treat named pipe as regular file")]
+            public bool RegularFile { get; set; }
         }
 
         [Verb("receive", HelpText = "Open pipe (write mode) and transfer data from stdin or file to it")]
-        internal sealed class ReceiverOpttions : Options
+        internal sealed class ReceiverOpttions : Options, App.IFilePath, App.IReceiverOptions
         {
             [Option('f', "file", Default = "stdout", Required = false, HelpText = "File to read data from")]
-            public override string File { get; set; }
+            public string File { get; set; }
+
+            [Option('o', "overwerite", Required = false, Default = false, HelpText = "Overwerite existing file")]
+            public bool Overwrite { get; set; }
         }
 
         [Verb("send", HelpText = "Open pipe (read mode) and write data from it to stdout or file")]
-        internal sealed class SenderOptions : Options
+        internal sealed class SenderOptions : Options, App.IFilePath
         {
             [Option('f', "file", Default = "stdin", Required = false, HelpText = "File to write data from pipe")]
-            public override string File { get; set; }
+            public string File { get; set; }
         }
 
         class Program : App.Program<ReceiverOpttions, SenderOptions>
@@ -42,12 +45,12 @@ namespace NamedPipeTools
             {
                 PipeDirection pipeDirection = GetPipeDirection(options);
                 log.Info("Open named pipe {PipeName} client stream (direction {Direction})", options.PipeFullName, pipeDirection);
-                return new NamedPipeClientStream(".", options.PipeName, pipeDirection, PipeOptions.Asynchronous, System.Security.Principal.TokenImpersonationLevel.None, System.IO.HandleInheritability.None);
+                return new NamedPipeClientStream(".", options.PipeName, pipeDirection, PipeOptions.Asynchronous, System.Security.Principal.TokenImpersonationLevel.None, HandleInheritability.None);
             }
 
             private static async Task Receiver(ReceiverOpttions options, CancellationToken cancellationToken, Func<Task, Task> timeoutHandler)
             {
-                if (options.Simple)
+                if (options.RegularFile)
                 {
                     using(var simpleStream = GetSimpleStream(options))
                     using (var outStream = GetStream(options))
@@ -74,7 +77,7 @@ namespace NamedPipeTools
 
             private static async Task Sender(SenderOptions options, CancellationToken cancellationToken, Func<Task, Task> timeoutHandler)
             {
-                if (options.Simple)
+                if (options.RegularFile)
                 {
                     using(var simpleStream = GetSimpleStream(options))
                     using (var inStream = GetStream(options))
