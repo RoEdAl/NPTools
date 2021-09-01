@@ -37,15 +37,15 @@ namespace NamedPipeTools
             static private FileStream GetSimpleStream(Options options)
             {
                 PipeDirection pipeDirection = GetPipeDirection(options);
-                log.Info("Open named pipe {PipeName} as file stream (direction {Direction})", options.PipeFullName, pipeDirection);
+                log.Info("Open named pipe {PipeName} as file stream (direction: {Direction})", options.PipeFullName, pipeDirection);
                 return Native.Open(options.PipeFullName, pipeDirection, options.BufferSize);
             }
 
             static private NamedPipeClientStream GetPipeStream(Options options)
             {
                 PipeDirection pipeDirection = GetPipeDirection(options);
-                log.Info("Open named pipe {PipeName} client stream (direction {Direction})", options.PipeFullName, pipeDirection);
-                return new NamedPipeClientStream(".", options.PipeName, pipeDirection, PipeOptions.Asynchronous, System.Security.Principal.TokenImpersonationLevel.None, HandleInheritability.None);
+                log.Info("Open named pipe {PipeName} client stream (direction: {Direction})", options.PipeFullName, pipeDirection);
+                return new NamedPipeClientStream(".", options.PipeName, pipeDirection, PipeOptions.Asynchronous, System.Security.Principal.TokenImpersonationLevel.Anonymous, HandleInheritability.None);
             }
 
             private static async Task Receiver(ReceiverOpttions options, CancellationToken cancellationToken, Func<Task, Task> timeoutHandler)

@@ -9,14 +9,14 @@ Server can work in two modes:
 
 * Receiver - copies data from pipe to `StdOut` or file
 
-    ```.bat
+    ```bat
     NamedPipeServer.exe receive MySweetPipe
     NamedPipeServer.exe receive -f ReceivedData.bin MyBinaryPipe
     ```
 
 * Sender - copies data from `StdIn` or file to pipe
 
-    ```.bat
+    ```bat
     NamedPipeServer.exe send MySweetPipe
     NamedPipeServer.exe send -f FileToSend.bin MyBinaryPipe
     ```
@@ -25,34 +25,39 @@ Server can work in two modes:
 
 ## The Client
 
-Ppipe created by server may be - in many situations - used as regular file when using full pipe path:
+* Ppipe created by server may be - in many situations - used as regular file when using full pipe path:
 
-```.bat
-REM Send data to named pipe
-DIR > \\.\pipe\MySweetPipe
+    ```bat
+    REM Send data to named pipe
+    DIR > \\.\pipe\MySweetPipe
 
-REM Receive data from named pipe
-SORT < \\.\pipe\MySweetPipe
-```
-
-## The Client - `NamedPipeClient.exe`
-
-`NamedPipeClient` is very similar to `NamedPipeServer`.
-It just connects to pipe created by `NamedPipeServer`.
-Like server, client can also work in two modes:
-
-* Receiver - copies data from pipe to `StdOut` or file
-
-    ```.bat
-    NamedPipeClient.exe receive MySweetPipe
-    NamedPipeClient.exe receive -f ReceivedData.bin MyBinaryPipe
+    REM Receive data from named pipe
+    SORT < \\.\pipe\MySweetPipe
     ```
 
-* Sender - copies data from `StdIn` or file to pipe
+* `NamedPipeClient.exe`
 
-    ```.bat
-    NamedPipeClient.exe send MySweetPipe
-    NamedPipeClient.exe send -f FileToSend.bin MyBinaryPipe
-    ```
+    `NamedPipeClient` is very similar to `NamedPipeServer`.
+    It just connects to pipe created by `NamedPipeServer`.
+    Like server, client can also work in two modes:
 
-    Additional option `-r` tries to open pipe as regular file (file stream).
+    * Receiver - copies data from pipe to `StdOut` or file
+
+        ```bat
+        NamedPipeClient.exe receive MySweetPipe
+        NamedPipeClient.exe receive -f ReceivedData.bin MyBinaryPipe
+        ```
+
+    * Sender - copies data from `StdIn` or file to pipe
+
+        ```bat
+        NamedPipeClient.exe send MySweetPipe
+        NamedPipeClient.exe send -f FileToSend.bin MyBinaryPipe
+        ```
+
+        Additional option `-r` tries to open pipe as regular file (file stream).
+
+## See also:
+
+* [Microsoft Docs - Named Pipes](https://docs.microsoft.com/en-us/windows/win32/ipc/named-pipes)
+* [Getting the Logon SID in C++](https://docs.microsoft.com/en-us/previous-versions//aa446670(v=vs.85))
