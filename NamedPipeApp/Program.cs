@@ -111,60 +111,71 @@ namespace NamedPipeTools.App
             throw new ArgumentException("Unsupported options class");
         }
 
-        private static async Task GetCancellationTask(int timeoutInSeconds, CancellationToken timeoutCancellationToken, CancellationTokenSource taskCancellationTokenSource )
-        {
-            await Task.Delay(TimeSpan.FromSeconds(timeoutInSeconds), timeoutCancellationToken);
-
-            log.Warn("Timeout");
-            taskCancellationTokenSource.Cancel();
-        }
         private static async Task TimeoutHandler(Options options, Task task, CancellationTokenSource taskCancellationTokenSource)
         {
-            if (options.ConnectTimeout <= 0)
+            if (options.ConnectTimeout > 0)
             {
-                await task;
-                return;
+                using (var cancellationTokenSource = new CancellationTokenSource())
+                {
+                    var delayTask = Task.Delay(TimeSpan.FromSeconds(options.ConnectTimeout), cancellationTokenSource.Token);
+                    Task[] tasks = new Task[] { delayTask, task };
+                    Action<Task> continuationAction = (t) =>
+                    {
+                        if (t == delayTask)
+                        {
+                            log.Warn("Timeout");
+                            taskCancellationTokenSource.Cancel();
+                        }
+                        else
+                        {
+                            if (!delayTask.IsCompleted && !delayTask.IsCanceled)
+                            {
+                                log.Debug("Cancel delayed task");
+                                cancellationTokenSource.Cancel();
+                                // await delayTask;
+                            }
+                        }
+                    };
+                    await Task.Factory.ContinueWhenAny(tasks, continuationAction, taskCancellationTokenSource.Token);
+                }
             }
 
-            using (var cancellationTokenSource = new CancellationTokenSource())
-            {
-                var cancellationTask = GetCancellationTask(options.ConnectTimeout, cancellationTokenSource.Token, taskCancellationTokenSource);
-                var completedTask = await Task.WhenAny(cancellationTask, task);
-                if (completedTask == task)
-                {
-                    log.Debug("Cancel cancellation task");
-                    cancellationTokenSource.Cancel();
-                }
-                else
-                {
-                    await task; // task cancelled, raise exception
-                }
-            }
+            await task;
         }
 
-        private static async Task<T> TimeoutHandler<T>(Options options, Task<T> task, CancellationTokenSource taskCancellationTokenSource)
+        private static void CancelEventHandler(ConsoleCancelEventArgs e, CancellationTokenSource cancellationTokenSource, bool verbose)
         {
-            if (options.ConnectTimeout <= 0)
-            {
-                return await task;
-            }
+            e.Cancel = true; // Continue
 
-            using (var cancellationTokenSource = new CancellationTokenSource())
+            try
             {
-                var cancellationTask = GetCancellationTask(options.ConnectTimeout, cancellationTokenSource.Token, taskCancellationTokenSource);
-                var completedTask = await Task.WhenAny(cancellationTask, task);
-                if (completedTask == task)
+                cancellationTokenSource.Cancel();
+            }
+            catch (ObjectDisposedException ex)
+            {
+                log.Debug(ex.Message);
+            }
+            catch (AggregateException ex)
+            {
+                foreach (var ie in ex.InnerExceptions)
                 {
-                    log.Debug("Cancel cancellation task");
-                    cancellationTokenSource.Cancel();
-                    return task.Result;
-                }
-                else
-                {
-                    return await task; // task cancelled, raise exception
+                    if (ie is ObjectDisposedException)
+                    {
+                        log.Debug(ie.Message);
+                    }
+                    else
+                    {
+                        if (verbose)
+                        {
+                            log.Fatal(ie);
+                        }
+                        else
+                        {
+                            log.Fatal(ie.Message);
+                        }
+                    }
                 }
             }
-
         }
 
         private static async Task VerbHandler<T>(T options, Func<T, CancellationToken, Func<Task, Task>, Task> handler) where T : Options
@@ -177,14 +188,8 @@ namespace NamedPipeTools.App
 
             using (var cancellationTokenSource = new CancellationTokenSource())
             {
-                ConsoleCancelEventHandler cancelEventHandler = (object sender, ConsoleCancelEventArgs e) =>
-                {
-                    log.Warn("Cancel request");
-                    cancellationTokenSource.Cancel();
-                };
-
                 log.Debug("Initialize cancel event handler");
-                Console.CancelKeyPress += cancelEventHandler;
+                Console.CancelKeyPress += (object sender, ConsoleCancelEventArgs e) => CancelEventHandler(e, cancellationTokenSource, options.Verbose);
 
                 try
                 {
@@ -195,7 +200,7 @@ namespace NamedPipeTools.App
                 {
                     throw;
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
                     if (options.Verbose)
                     {
@@ -207,11 +212,6 @@ namespace NamedPipeTools.App
                     }
 
                     throw new HandledException(ex);
-                }
-                finally
-                {
-                    log.Debug("Uninitialize cancel event handler");
-                    Console.CancelKeyPress -= cancelEventHandler;
                 }
             }
         }
@@ -239,6 +239,7 @@ namespace NamedPipeTools.App
             }
             catch(OperationCanceledException)
             {
+                log.Warn("Cancelled");
                 return ExitCode.CANCELLED;
             }
             catch (Exception ex)

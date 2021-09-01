@@ -4,6 +4,8 @@ using System.ComponentModel;
 using System.IO;
 using System.IO.Pipes;
 using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace NamedPipeTools.Client
 {
@@ -18,6 +20,9 @@ namespace NamedPipeTools.Client
            ECreationDisposition dwCreationDisposition,
            EFileAttributes dwFlagsAndAttributes,
            IntPtr hTemplateFile);
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        private static extern bool WaitNamedPipe(string lpNamedPipeName, uint nTimeOut);
 
         [Flags]
         private enum EFileAccess : uint
@@ -153,7 +158,39 @@ namespace NamedPipeTools.Client
                 default:
                     throw new ArgumentException();
             }
+        }
 
+        private const int ERROR_FILE_NOT_FOUND = 2;
+        private const int ERROR_SEM_TIMEOUT = 121;
+        private const uint PIPE_WAIT_DELAY = 125;
+        private static readonly TimeSpan PIPE_WAIT_DELAY_TS2 = TimeSpan.FromMilliseconds(2*PIPE_WAIT_DELAY);
+        private static readonly TimeSpan PIPE_WAIT_DELAY_TS4 = TimeSpan.FromMilliseconds(4*PIPE_WAIT_DELAY);
+
+        public static async Task WaitNamedPipeAsync(string pipeName, CancellationToken cancellationToken )
+        {
+            while(!cancellationToken.IsCancellationRequested)
+            {
+                if (WaitNamedPipe(pipeName, PIPE_WAIT_DELAY)) return;
+                var lastError = Marshal.GetLastWin32Error();
+                switch(lastError)
+                {
+                    case ERROR_FILE_NOT_FOUND:
+                        await Task.Delay(PIPE_WAIT_DELAY_TS4, cancellationToken);
+                        break;
+
+                    case ERROR_SEM_TIMEOUT:
+                        await Task.Delay(PIPE_WAIT_DELAY_TS2, cancellationToken);
+                        break;
+
+                    default:
+                        throw new Win32Exception(lastError);
+                }
+            }
+            
+            if (cancellationToken.IsCancellationRequested)
+            {
+                await Task.FromCanceled(cancellationToken);
+            }
         }
     }
 }

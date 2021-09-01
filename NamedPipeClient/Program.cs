@@ -52,7 +52,10 @@ namespace NamedPipeTools
             {
                 if (options.RegularFile)
                 {
-                    using(var simpleStream = GetSimpleStream(options))
+                    log.Info("Wait for a pipe");
+                    await timeoutHandler(Native.WaitNamedPipeAsync(options.PipeFullName, cancellationToken));
+
+                    using (var simpleStream = GetSimpleStream(options))
                     using (var outStream = GetStream(options))
                     {
                         log.Info("Receive data");
@@ -79,7 +82,10 @@ namespace NamedPipeTools
             {
                 if (options.RegularFile)
                 {
-                    using(var simpleStream = GetSimpleStream(options))
+                    log.Info("Wait for a pipe");
+                    await timeoutHandler(Native.WaitNamedPipeAsync(options.PipeFullName, cancellationToken));
+
+                    using (var simpleStream = GetSimpleStream(options))
                     using (var inStream = GetStream(options))
                     {
                         await inStream.CopyToAsync(simpleStream, options.BufferSize, cancellationToken);

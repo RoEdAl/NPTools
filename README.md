@@ -60,4 +60,5 @@ Server can work in two modes:
 ## See also:
 
 * [Microsoft Docs - Named Pipes](https://docs.microsoft.com/en-us/windows/win32/ipc/named-pipes)
-* [Getting the Logon SID in C++](https://docs.microsoft.com/en-us/previous-versions//aa446670(v=vs.85))
+* [Getting the Logon SID in C++](https://docs.microsoft.com/en-us/previous-versions//aa446670%28v%3Dvs.85%29)
+* [Offensive Windows IPC Internals 1: Named Pipes](https://csandker.io/2021/01/10/Offensive-Windows-IPC-1-NamedPipes.html)
